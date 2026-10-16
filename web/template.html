@@ -50,6 +50,8 @@
   .chart-wrap { overflow-x: auto; border-top: 1px solid var(--rule); padding-top: 8px; }
   #chart { width: 478px; }
   .note { font-size: 0.8rem; color: var(--fg-2); line-height: 1.5; margin: 0; }
+  .footnote { font-size: 0.72rem; color: var(--fg-2); line-height: 1.5; margin: 0;
+              border-top: 1px solid var(--rule); padding-top: 10px; }
 </style>
 
 <main>
@@ -69,6 +71,8 @@
   <div class="chart-wrap"><div id="chart" role="img" aria-label="Dot histogram of salaries by university"></div></div>
 
   <p class="note">All disciplines share the same bins and axes, so their charts can be compared directly. Within each column, the lowest salary sits at the bottom.</p>
+
+  <p class="footnote">Earnings represent the median income reported on IRS tax records for students who graduated from a particular program in 2017–18 or 2018–19. A program is listed if there were more than 15 graduates who had received federal aid.</p>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
