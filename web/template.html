@@ -1,0 +1,153 @@
+<title>Engineering Salaries by University</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one narrow column, the controls above a fixed-scale dot chart, a note below */
+  :root {
+    --bg: #fbfbf8;
+    --surface: #ffffff;
+    --fg: #16181a;
+    --fg-2: #55585c;
+    --rule: #e3e3dd;
+    --dot: #2a78d6;
+    --psu: rgb(106, 127, 16);
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151617; --surface: #1c1d1f; --fg: #eeeeea; --fg-2: #a9aba6;
+      --rule: #34363a; --dot: #3987e5; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151617; --surface: #1c1d1f; --fg: #eeeeea; --fg-2: #a9aba6;
+    --rule: #34363a; --dot: #3987e5; color-scheme: dark;
+  }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 48px;
+  }
+  main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+  h1 { font-size: 1.6rem; font-weight: 600; line-height: 1.2; margin: 0; text-wrap: balance; }
+  .lede { margin: 6px 0 0; color: var(--fg-2); line-height: 1.5; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem;
+          letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-2); }
+  select {
+    font: 500 0.95rem var(--font-body); color: var(--fg); background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; min-width: 15rem;
+  }
+  select:focus-visible { outline: 2px solid var(--dot); outline-offset: 2px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 0.85rem; }
+  .stats div { display: flex; flex-direction: column; gap: 2px; }
+  .stats dt { color: var(--fg-2); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+  .stats dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+  .psu-key { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+             background: var(--psu); margin-right: 6px; vertical-align: 1px; }
+  .chart-wrap { overflow-x: auto; border-top: 1px solid var(--rule); padding-top: 8px; }
+  #chart { width: 478px; }
+  .note { font-size: 0.8rem; color: var(--fg-2); line-height: 1.5; margin: 0; }
+</style>
+
+<main>
+  <header>
+    <h1>Engineering salaries by university</h1>
+    <p class="lede">Each dot is one university, placed by the salary of its graduates in $5,000 bins. Hover or tap a dot to see the university.</p>
+  </header>
+
+  <div class="controls">
+    <label for="discipline">Discipline
+      <select id="discipline"></select>
+    </label>
+  </div>
+
+  <dl class="stats" id="stats"></dl>
+
+  <div class="chart-wrap"><div id="chart" role="img" aria-label="Dot histogram of salaries by university"></div></div>
+
+  <p class="note">All disciplines share the same bins and axes, so their charts can be compared directly. Within each column, the lowest salary sits at the bottom.</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script>
+  if (!window.Plotly) document.getElementById("chart").textContent =
+    "The chart library couldn't load. Check your connection and reload the page.";
+  const DATA = __DATA__;
+  const HIGHLIGHT = "Portland State University";
+  const BIN = 5000, DOT = 6, GAP = 1;
+  const M = { l: 56, r: 16, t: 8, b: 44 };
+
+  // Bin every discipline with the same $5k bins; stack dots by salary within each bin
+  const views = {};
+  for (const [name, rows] of Object.entries(DATA)) {
+    const sorted = [...rows].sort((a, b) => a[1] - b[1]);
+    const levels = {};
+    views[name] = sorted.map(([uni, sal]) => {
+      const bin = Math.floor(sal / BIN);
+      levels[bin] = (levels[bin] || 0) + 1;
+      return { uni, sal, bin, level: levels[bin] };
+    });
+  }
+  const all = Object.values(views).flat();
+  const X_END = (Math.max(...all.map(d => d.bin)) + 1) * BIN;
+  const Y_MAX = Math.max(...all.map(d => d.level)) + 1;
+  const plotW = Math.round(X_END / BIN * (DOT + GAP));
+  const plotH = Math.round(Y_MAX * (DOT + GAP));
+
+  const usd = n => "$" + n.toLocaleString("en-US");
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const select = document.getElementById("discipline");
+  for (const name of Object.keys(views)) select.add(new Option(name, name));
+
+  function renderStats(name) {
+    const v = views[name];
+    const sal = v.map(d => d.sal);
+    const median = sal.length % 2 ? sal[(sal.length - 1) / 2]
+      : Math.round((sal[sal.length / 2 - 1] + sal[sal.length / 2]) / 2);
+    const psuIdx = v.findIndex(d => d.uni === HIGHLIGHT);
+    const items = [
+      ["Universities", v.length.toLocaleString("en-US")],
+      ["Median", usd(median)],
+      ["Range", `${usd(sal[0])} – ${usd(sal[sal.length - 1])}`],
+    ];
+    if (psuIdx >= 0) items.push([`<span class="psu-key"></span>Portland State`,
+      `${usd(v[psuIdx].sal)} · #${v.length - psuIdx} of ${v.length}`]);
+    document.getElementById("stats").innerHTML =
+      items.map(([k, val]) => `<div><dt>${k}</dt><dd>${val}</dd></div>`).join("");
+  }
+
+  function render() {
+    const name = select.value, v = views[name];
+    const fg2 = css("--fg-2"), rule = css("--rule"), surface = css("--surface");
+    const trace = {
+      type: "scatter", mode: "markers",
+      x: v.map(d => d.bin * BIN + BIN / 2), y: v.map(d => d.level),
+      customdata: v.map(d => [d.uni, usd(d.sal), `${usd(d.bin * BIN)} – ${usd((d.bin + 1) * BIN)}`]),
+      hovertemplate: "<b>%{customdata[0]}</b><br>Salary: %{customdata[1]}<br>Bin: %{customdata[2]}<extra></extra>",
+      marker: { size: DOT, line: { width: 0 },
+                color: v.map(d => d.uni === HIGHLIGHT ? css("--psu") : css("--dot")) },
+    };
+    const layout = {
+      width: plotW + M.l + M.r, height: plotH + M.t + M.b, margin: M,
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+      font: { family: css("--font-body"), color: fg2, size: 12 },
+      showlegend: false, dragmode: false,
+      hoverlabel: { bgcolor: surface, bordercolor: rule, font: { color: css("--fg"), size: 12 } },
+      xaxis: { range: [0, X_END], tickvals: [0, 250000], ticktext: ["$0", "$250k"],
+               showgrid: false, zeroline: false, linecolor: fg2, fixedrange: true,
+               title: { text: "Salary", standoff: 6 } },
+      yaxis: { range: [0, Y_MAX], gridcolor: rule, zeroline: false, fixedrange: true,
+               title: { text: "Number of universities" } },
+    };
+    Plotly.react("chart", [trace], layout, { displayModeBar: false, responsive: false });
+    renderStats(name);
+  }
+
+  select.addEventListener("change", render);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+  new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  render();
+</script>
